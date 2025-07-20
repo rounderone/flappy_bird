@@ -140,6 +140,44 @@
         let showingInitialsInput = false;
         let jumpHangFrames = 0; // For desktop floating effect
 
+        // Load saved high score from localStorage
+        function loadHighScore() {
+            try {
+                const savedHighScore = localStorage.getItem('flappyBirdHighScore');
+                const savedInitials = localStorage.getItem('flappyBirdInitials');
+                
+                if (savedHighScore !== null) {
+                    highScore = parseInt(savedHighScore);
+                    console.log('✅ Loaded saved high score:', highScore);
+                }
+                
+                if (savedInitials !== null) {
+                    highScoreInitials = savedInitials;
+                    console.log('✅ Loaded saved initials:', highScoreInitials);
+                }
+                
+                if (savedHighScore !== null || savedInitials !== null) {
+                    console.log('🏆 Previous high score restored:', highScore, 'by', highScoreInitials);
+                }
+            } catch (error) {
+                console.log('⚠️ Could not load saved high score:', error);
+            }
+        }
+
+        // Save high score to localStorage
+        function saveHighScore() {
+            try {
+                localStorage.setItem('flappyBirdHighScore', highScore.toString());
+                localStorage.setItem('flappyBirdInitials', highScoreInitials);
+                console.log('💾 High score saved:', highScore, 'by', highScoreInitials);
+            } catch (error) {
+                console.log('⚠️ Could not save high score:', error);
+            }
+        }
+
+        // Load high score when game starts
+        loadHighScore();
+
         // Adaptive settings based on device
         const gameSettings = isMobile ? {
             // Mobile settings (original)
@@ -151,10 +189,9 @@
             gracePeriodFloat: true
         } : {
             // Desktop settings (SMOOTH & FLOATY like original Flappy Bird)
-            // Original Flappy Bird had: gravity ~0.25, jumpPower ~-6, but 30fps
-            // Our 60fps equivalent: gravity ~0.04, jumpPower ~-10, with hang time
+            // Fine-tuned for precise control
             gravity: 0.04,         // VERY light gravity for smooth floating
-            jumpPower: -10,        // STRONGER jump - more height per flap
+            jumpPower: -6.5,       // REDUCED jump - more precise control
             pipeGap: 380,          // Big gaps but not ridiculous
             pipeSpeed: 1.4,        // Smooth slow speed
             inputDelay: 50,        // Responsive clicking
@@ -162,14 +199,14 @@
             // NEW: Floating physics for that classic Flappy Bird feel
             velocityDecay: 0.98,   // Bird slows down gradually for hang time
             maxFallSpeed: 3,       // Very gentle max fall speed
-            jumpHangTime: 10       // Slightly longer hang time for more float
+            jumpHangTime: 10       // Extended hang time for smooth float
         };
 
         // Debug: Log game settings
         console.log('=== GAME SETTINGS ===');
         console.log('Device Type:', isMobile ? 'MOBILE' : 'DESKTOP');
         console.log('Gravity:', gameSettings.gravity);
-        console.log('Jump Power:', gameSettings.jumpPower, '(higher = more lift per flap)');
+        console.log('Jump Power:', gameSettings.jumpPower, '(reduced for precise control)');
         console.log('Pipe Gap:', gameSettings.pipeGap);
         console.log('Hang Time:', gameSettings.jumpHangTime, 'frames');
         console.log('====================');
@@ -711,6 +748,9 @@
             } else {
                 highScoreInitials = "YOU";
             }
+            
+            // Save the new high score permanently
+            saveHighScore();
             
             input.value = "";
             hideInitialsForm();
