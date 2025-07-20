@@ -83,7 +83,7 @@
     </style>
 </head>
 <body>
-    <div class="instructions">
+    <div class="instructions" id="gameInstructions">
         Click or Press SPACE to Flap! Collect golden crumbs for bonus points!
     </div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -102,26 +102,63 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
+        // Device detection with debugging
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                         ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+        // Debug: Log device detection
+        console.log('Device detected as:', isMobile ? 'Mobile' : 'Desktop');
+        console.log('User Agent:', navigator.userAgent);
+
+        // Update instructions based on device
+        if (isMobile) {
+            document.getElementById('gameInstructions').textContent = 'Tap to Flap! Collect golden crumbs for bonus points!';
+        } else {
+            document.getElementById('gameInstructions').textContent = 'Click or Press SPACE to Flap! Desktop Mode - Easy Physics!';
+        }
+
         // Game variables
         let gameRunning = true;
         let score = 0;
         let gameStarted = false;
         let gameStartTime = 0;
-        let lastTouchTime = 0;
+        let lastInputTime = 0;
         let wingFlapTime = 0;
         let highScore = 0;
         let highScoreInitials = "YOU";
         let showingInitialsInput = false;
 
-        // Bird object
+        // Adaptive settings based on device
+        const gameSettings = isMobile ? {
+            // Mobile settings (original)
+            gravity: 0.5,
+            jumpPower: -7,
+            pipeGap: 250,
+            pipeSpeed: 2.5,
+            inputDelay: 150,
+            gracePeriodFloat: true
+        } : {
+            // Desktop settings (EXTREMELY forgiving)
+            gravity: 0.15,         // Almost no gravity!
+            jumpPower: -12,        // Very strong jump
+            pipeGap: 350,          // Huge gaps
+            pipeSpeed: 1.5,        // Very slow pipes
+            inputDelay: 30,        // Very fast clicking
+            gracePeriodFloat: false
+        };
+
+        // Debug: Log game settings
+        console.log('Game settings:', gameSettings);
+
+        // Bird object with adaptive physics
         const bird = {
             x: canvas.width / 3,
             y: canvas.height / 2 - 100,
             width: 34,
             height: 24,
             velocity: 0,
-            gravity: 0.5,
-            jumpPower: -7,
+            gravity: gameSettings.gravity,
+            jumpPower: gameSettings.jumpPower,
             color: '#FFD700',
             wingColor: '#FFA500'
         };
@@ -130,10 +167,10 @@
         const pipes = [];
         const crumbs = [];
 
-        // Game constants
+        // Game constants with adaptive settings
         const pipeWidth = 80;
-        const pipeGap = 250;
-        const pipeSpeed = 2.5;
+        const pipeGap = gameSettings.pipeGap;
+        const pipeSpeed = gameSettings.pipeSpeed;
 
         // Ground object
         const ground = {
@@ -162,20 +199,21 @@
         function createCrumb() {
             const minY = 100;
             const maxY = ground.y - 80;
+            const safetyMargin = isMobile ? 100 : 120; // Larger margins for desktop
             
             for (let attempts = 0; attempts < 20; attempts++) {
-                const crumbX = canvas.width + Math.random() * 300;
+                const crumbX = canvas.width + Math.random() * (isMobile ? 300 : 400);
                 const crumbY = Math.random() * (maxY - minY) + minY;
                 
                 let safePosition = true;
                 
                 for (let i = 0; i < pipes.length; i++) {
                     const pipe = pipes[i];
-                    const pipeLeft = pipe.x - 100;
-                    const pipeRight = pipe.x + pipeWidth + 100;
+                    const pipeLeft = pipe.x - safetyMargin;
+                    const pipeRight = pipe.x + pipeWidth + safetyMargin;
                     
                     if (crumbX >= pipeLeft && crumbX <= pipeRight) {
-                        if (crumbY < pipe.topHeight + 50 || crumbY > pipe.bottomY - 50) {
+                        if (crumbY < pipe.topHeight + 60 || crumbY > pipe.bottomY - 60) {
                             safePosition = false;
                             break;
                         }
@@ -183,7 +221,7 @@
                 }
                 
                 const futurePipeX = canvas.width + 200;
-                if (crumbX >= futurePipeX - 100 && crumbX <= futurePipeX + pipeWidth + 100) {
+                if (crumbX >= futurePipeX - safetyMargin && crumbX <= futurePipeX + pipeWidth + safetyMargin) {
                     safePosition = false;
                 }
                 
@@ -377,7 +415,7 @@
             ctx.strokeText(score.toString(), canvas.width / 2, 60);
             ctx.fillText(score.toString(), canvas.width / 2, 60);
             
-            // High score display - positioned left of center but not at edge
+            // High score display
             ctx.fillStyle = 'white';
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 2;
@@ -387,14 +425,14 @@
             const displayHighScore = highScore || 0;
             const displayInitials = highScoreInitials || "YOU";
             
-            // Draw high score left of center where we know it will show
             ctx.strokeText('HIGH: ' + displayHighScore + ' BY: ' + displayInitials, canvas.width / 4, 85);
             ctx.fillText('HIGH: ' + displayHighScore + ' BY: ' + displayInitials, canvas.width / 4, 85);
             
             // Grace period indicator
             if (gameStarted && gameRunning) {
                 const currentTime = Date.now();
-                const graceTimeLeft = 2000 - (currentTime - gameStartTime);
+                const gracePeriod = isMobile ? 2000 : 3000; // Longer grace period for desktop
+                const graceTimeLeft = gracePeriod - (currentTime - gameStartTime);
                 if (graceTimeLeft > 0) {
                     ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
                     ctx.font = 'bold 24px Arial';
@@ -423,8 +461,9 @@
             ctx.fillText('FLAPPY BIRD', canvas.width / 2, canvas.height / 2 - 50);
             
             ctx.font = 'bold 24px Arial';
-            ctx.strokeText('Click or Press SPACE to Start', canvas.width / 2, canvas.height / 2 + 50);
-            ctx.fillText('Click or Press SPACE to Start', canvas.width / 2, canvas.height / 2 + 50);
+            const startText = isMobile ? 'Tap to Start' : 'Click or Press SPACE to Start';
+            ctx.strokeText(startText, canvas.width / 2, canvas.height / 2 + 50);
+            ctx.fillText(startText, canvas.width / 2, canvas.height / 2 + 50);
         }
 
         // Draw game over screen
@@ -454,23 +493,44 @@
                 ctx.fillText('NEW HIGH SCORE!', canvas.width / 2, canvas.height / 2 + 10);
             } else {
                 ctx.fillStyle = 'white';
-                ctx.strokeText('Click or Press SPACE to Restart', canvas.width / 2, canvas.height / 2 + 30);
-                ctx.fillText('Click or Press SPACE to Restart', canvas.width / 2, canvas.height / 2 + 30);
+                const restartText = isMobile ? 'Tap to Restart' : 'Click or Press SPACE to Restart';
+                ctx.strokeText(restartText, canvas.width / 2, canvas.height / 2 + 30);
+                ctx.fillText(restartText, canvas.width / 2, canvas.height / 2 + 30);
             }
         }
 
-        // Update bird physics
+        // Update bird physics with device-adaptive behavior
         function updateBird() {
             if (gameStarted && gameRunning) {
                 const currentTime = Date.now();
-                const graceTimeLeft = 2000 - (currentTime - gameStartTime);
+                const gracePeriod = isMobile ? 2000 : 3000; // Even longer grace period for desktop
+                const graceTimeLeft = gracePeriod - (currentTime - gameStartTime);
                 
                 if (graceTimeLeft > 0) {
-                    bird.velocity *= 0.8;
-                    bird.y += Math.sin((currentTime - gameStartTime) / 200) * 0.5;
+                    // During grace period
+                    if (gameSettings.gracePeriodFloat) {
+                        // Mobile: gentle floating during grace period
+                        bird.velocity *= 0.8;
+                        bird.y += Math.sin((currentTime - gameStartTime) / 200) * 0.5;
+                    } else {
+                        // Desktop: keep bird completely stable during grace period
+                        bird.velocity = 0;
+                        bird.y = canvas.height / 2 - 100;
+                    }
                 } else {
+                    // Normal physics after grace period
                     bird.velocity += bird.gravity;
                     bird.y += bird.velocity;
+                    
+                    // Extra safety: cap maximum fall speed for desktop
+                    if (!isMobile && bird.velocity > 6) {
+                        bird.velocity = 6; // Even more limited fall speed
+                    }
+                    
+                    // Debug: Log physics values for desktop
+                    if (!isMobile && gameStarted && currentTime % 1000 < 16) { // Log roughly once per second
+                        console.log('Desktop Physics - Y:', Math.round(bird.y), 'Velocity:', bird.velocity.toFixed(2), 'Gravity:', bird.gravity);
+                    }
                 }
             }
         }
@@ -513,10 +573,13 @@
             if (!gameStarted || !gameRunning) return;
             
             const currentTime = Date.now();
-            const graceTimeLeft = 2000 - (currentTime - gameStartTime);
+            const gracePeriod = isMobile ? 2000 : 3000; // Longer grace period for desktop
+            const graceTimeLeft = gracePeriod - (currentTime - gameStartTime);
             if (graceTimeLeft > 0) return;
             
-            if (graceTimeLeft > -100 && graceTimeLeft <= 0) {
+            // Extra buffer after grace period for desktop
+            const bufferTime = isMobile ? 100 : 500; // Even longer buffer for desktop
+            if (graceTimeLeft > -bufferTime && graceTimeLeft <= 0) {
                 if (bird.y > canvas.height / 2) {
                     bird.y = canvas.height / 2 - 50;
                     bird.velocity = 0;
@@ -526,6 +589,7 @@
             
             // Ground/ceiling collision
             if (bird.y + bird.height >= ground.y - 20 || bird.y <= -10) {
+                console.log('Desktop collision detected - Ground/Ceiling');
                 gameRunning = false;
                 return;
             }
@@ -540,6 +604,7 @@
                 
                 if (birdRight > pipe.x && birdLeft < pipe.x + pipeWidth) {
                     if (birdTop < pipe.topHeight || birdBottom > pipe.bottomY) {
+                        console.log('Desktop collision detected - Pipe');
                         gameRunning = false;
                         return;
                     }
@@ -588,7 +653,6 @@
             const input = document.getElementById('initialsInput');
             const initials = input.value.trim();
             
-            // Always update high score since we only get here when score > highScore
             highScore = score;
             
             if (initials.length >= 1) {
@@ -615,13 +679,18 @@
             gameStartTime = 0;
         }
 
-        // Jump function
+        // Jump function with adaptive input handling
         function jump(e) {
             if (showingInitialsInput) return;
             
             const currentTime = Date.now();
-            if (currentTime - lastTouchTime < 150) return;
-            lastTouchTime = currentTime;
+            if (currentTime - lastInputTime < gameSettings.inputDelay) return;
+            lastInputTime = currentTime;
+            
+            // Debug: Log jump attempts for desktop
+            if (!isMobile) {
+                console.log('Desktop jump attempted - Game started:', gameStarted, 'Game running:', gameRunning);
+            }
             
             if (e) e.preventDefault();
             
@@ -629,8 +698,12 @@
                 gameStarted = true;
                 gameStartTime = currentTime;
                 bird.velocity = bird.jumpPower;
-                setTimeout(createPipe, 2500);
-                setTimeout(createCrumb, 3000);
+                console.log('Game started - Initial jump power:', bird.jumpPower);
+                // Longer delays for desktop to account for longer grace period
+                const pipeDelay = isMobile ? 2500 : 3500;
+                const crumbDelay = isMobile ? 3000 : 4000;
+                setTimeout(createPipe, pipeDelay);
+                setTimeout(createCrumb, crumbDelay);
             } else if (!gameRunning) {
                 if (score > highScore) {
                     showInitialsForm();
@@ -639,6 +712,9 @@
                 }
             } else if (gameRunning && gameStarted) {
                 bird.velocity = bird.jumpPower;
+                if (!isMobile) {
+                    console.log('Desktop jump executed - New velocity:', bird.velocity);
+                }
             }
         }
 
@@ -660,7 +736,8 @@
             checkCollisions();
             
             const currentTime = Date.now();
-            if (gameStarted && gameRunning && currentTime - gameStartTime > 2000) {
+            const gracePeriod = isMobile ? 2000 : 3000; // Longer grace period for desktop
+            if (gameStarted && gameRunning && currentTime - gameStartTime > gracePeriod) {
                 if (pipes.length === 0 || (pipes.length > 0 && pipes[pipes.length - 1].x < canvas.width - 350)) {
                     createPipe();
                 }
@@ -676,16 +753,22 @@
                 drawGameOver();
             }
             
-            // Draw score LAST so it appears on top of everything
             drawScore();
             
             requestAnimationFrame(gameLoop);
         }
 
-        // Event listeners
+        // Event listeners with device-specific handling
         canvas.addEventListener('click', jump);
-        canvas.addEventListener('touchstart', jump, { passive: false });
-        canvas.addEventListener('touchend', function(e) { e.preventDefault(); }, { passive: false });
+        
+        if (isMobile) {
+            canvas.addEventListener('touchstart', jump, { passive: false });
+            canvas.addEventListener('touchend', function(e) { e.preventDefault(); }, { passive: false });
+            
+            document.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+        }
         
         document.addEventListener('keydown', function(e) {
             if (e.code === 'Space') {
@@ -693,10 +776,6 @@
                 jump(e);
             }
         });
-        
-        document.addEventListener('touchmove', function(e) {
-            e.preventDefault();
-        }, { passive: false });
 
         // Form event listeners
         document.getElementById('submitInitials').addEventListener('click', submitInitials);
